@@ -162,7 +162,7 @@ fn close(s: &mut Session, p: &Value) -> Result<Value> {
         None => None,
         Some(h) => Some(finite_numbers(h).map(|[x, y]| Point::new(x, y)).ok_or_else(|| bad("path.close", "`in` must be [x, y]"))?),
     };
-    let independent = bool_or(p, "independent", false);
+    let independent = switch_or(p, "independent", false, "path.close")?;
     s.edit("Close Path", |d, sel| {
         let path = path_mut(d, id)?;
         let sp = path.subpaths.iter_mut().rev().find(|s| !s.closed).ok_or_else(|| EngineError::Other("path is already closed".into()))?;
@@ -182,6 +182,7 @@ fn close(s: &mut Session, p: &Value) -> Result<Value> {
 
 pub(crate) fn move_anchors(s: &mut Session, p: &Value) -> Result<Value> {
     let d = Vec2::new(number_or(p, "dx", 0.0, "path.moveAnchors")?, number_or(p, "dy", 0.0, "path.moveAnchors")?);
+    check_switches(p, &["patterns"], "path.moveAnchors")?;
     // Objects selected whole move as objects, and their pattern tiles move with them when
     // `patterns` (default: General › Transform Pattern Tiles) is on.
     let whole = s.doc()?.selection.whole();
@@ -232,7 +233,7 @@ fn set_handle(s: &mut Session, p: &Value) -> Result<Value> {
     let ai = p.get("anchor").and_then(Value::as_u64).map(index).ok_or_else(|| bad("path.setHandle", "missing anchor"))?;
     let out = str_param(p, "which") != Some("in");
     let pos = Point::new(f64_req(p, "x", "path.setHandle")?, f64_req(p, "y", "path.setHandle")?);
-    let independent = bool_or(p, "independent", false);
+    let independent = switch_or(p, "independent", false, "path.setHandle")?;
     s.edit("Reshape", |d, _| {
         let path = path_mut(d, id)?;
         let a = path.anchor_mut(si, ai).ok_or_else(|| EngineError::Other("no such anchor".into()))?;
@@ -466,6 +467,9 @@ fn join(s: &mut Session, p: &Value) -> Result<Value> {
             if a == b {
                 return Err(bad(C, "join two different paths"));
             }
+            let st = s.doc()?;
+            let picked_a = st.selection.anchors.get(&a).cloned().unwrap_or_default();
+            let picked_b = st.selection.anchors.get(&b).cloned().unwrap_or_default();
             s.edit("Join", |d, sel| {
                 let pb = d.node(b).and_then(|n| n.path_data()).cloned().ok_or(EngineError::NoNode(b))?;
                 let pa = path_mut(d, a)?;
@@ -480,8 +484,24 @@ fn join(s: &mut Session, p: &Value) -> Result<Value> {
                 // The ends asked for, else the closest pair.
                 let cands =
                     [(xl.distance(yf), false, false), (xl.distance(yl), false, true), (xf.distance(yf), true, false), (xf.distance(yl), true, true)];
-                let (rx, ry) =
-                    ends.unwrap_or_else(|| cands.into_iter().min_by(|p, q| p.0.total_cmp(&q.0)).map_or((false, false), |(_, rx, ry)| (rx, ry)));
+                // Direct-selected end points decide which ends meet, before the closest pair does.
+                let end_of = |picked: &std::collections::BTreeSet<(usize, usize)>, si: usize, len: usize| {
+                    let last_ix = len.checked_sub(1)?;
+                    let first = picked.contains(&(si, 0));
+                    let last = picked.contains(&(si, last_ix));
+                    match (first, last) {
+                        (true, false) => Some(true),
+                        (false, true) => Some(false),
+                        _ => None,
+                    }
+                };
+                let by_selection = match (end_of(&picked_a, sa, x.anchors.len()), end_of(&picked_b, sb, y.anchors.len())) {
+                    (Some(fa), Some(fb)) => Some((fa, !fb)),
+                    _ => None,
+                };
+                let (rx, ry) = ends
+                    .or(by_selection)
+                    .unwrap_or_else(|| cands.into_iter().min_by(|p, q| p.0.total_cmp(&q.0)).map_or((false, false), |(_, rx, ry)| (rx, ry)));
                 if rx {
                     x.reverse();
                 }
