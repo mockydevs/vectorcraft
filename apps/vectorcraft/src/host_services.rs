@@ -1,3 +1,5 @@
+#[cfg(target_os = "linux")]
+use super::linux_file_read;
 #[cfg(any(target_os = "linux", target_os = "freebsd", target_os = "dragonfly", target_os = "netbsd", target_os = "openbsd"))]
 use super::portal_save;
 #[cfg(target_os = "linux")]
