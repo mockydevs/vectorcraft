@@ -27,7 +27,10 @@ and sandboxed apps that may reach the network but not your files, from driving t
 from the system's random source and writes it to `control-<port>.token` in its settings folder
 (`$XDG_CONFIG_HOME/vectorcraft` or `~/.config/vectorcraft` on Linux, `~/Library/Application Support/VectorCraft`
 on macOS, `%APPDATA%\VectorCraft` on Windows, `VECTORCRAFT_CONFIG_DIR` when set, `VectorCraftData` in portable
-mode). On Unix the file is mode `0600`; on Windows the settings folder is the user's own. The file is written
+mode). On Unix the file is mode `0600`. On Windows it takes the permissions of its folder: `%APPDATA%` is
+the user's own, but a portable `VectorCraftData` folder, or a `VECTORCRAFT_CONTROL_TOKEN_FILE` path, is only as
+private as the folder it is in, so on a machine other people use, keep those somewhere only you can read
+(or don't enable the port there). The file is written
 once the port is bound, so a second app that can't bind the port leaves the first one's token alone, and the
 app says where it is on standard error:
 `vectorcraft: control server listening on 127.0.0.1:7979 (token in /home/me/.config/vectorcraft/control-7979.token)`.
