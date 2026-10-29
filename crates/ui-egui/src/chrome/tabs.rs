@@ -1,4 +1,4 @@
-use super::*;
+use super::{Sense, Stroke, Tokens, Ui, VectorcraftApp, icons, json, theme, vec2, widgets, zoom_label};
 
 /// A document tab's title: "Name* @ 66.67 % (RGB/Preview)", or while an opacity mask is edited
 /// "Name* @ 66.67 % (<Opacity Mask>/Opacity Mask)".
@@ -207,7 +207,7 @@ pub(super) fn artboard_list(app: &VectorcraftApp, ui: &mut Ui, cur: usize) -> Op
     ui.add_enabled_ui(!boards.is_empty(), |ui| {
         ui.set_max_width(FIELD_W);
         ui.name_inputs(tl!("Artboard"), |ui| {
-            egui::ComboBox::from_id_salt("artboard-list")
+            craft_ui::ComboBox::from_id_salt("artboard-list")
                 .selected_text(egui::RichText::new(shown).size(11.5))
                 .width(FIELD_W)
                 .wrap_mode(egui::TextWrapMode::Truncate)
