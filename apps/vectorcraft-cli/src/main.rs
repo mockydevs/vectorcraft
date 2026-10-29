@@ -70,7 +70,8 @@ vectorcraft-cli — VectorCraft automation
 USAGE:
   vectorcraft-cli mcp [--connect ADDR | --headless] [--automation-read-root DIR]... [--automation-write-root DIR]...
       Run the MCP server on stdio. Default: connect to a running app at 127.0.0.1:7979
-      (vectorcraft --control 7979), falling back to a headless in-process session.
+      (vectorcraft --control 7979), falling back to a headless in-process session. It authenticates
+      with the token the app wrote next to its settings (or VECTORCRAFT_CONTROL_TOKEN).
       --automation-read-root / --automation-write-root confine the files the agent's commands read
       (open, place, relink, library loads…) and write (save, export, package, library saves…) to
       DIR, links followed; each may be given more than once, a path inside any of its folders being
@@ -247,10 +248,11 @@ fn mcp(args: &[String]) -> Result<(), String> {
     } else if headless {
         Box::new(with_stores(Headless::with_document()))
     } else if let Some(addr) = connect {
-        // Explicit address: fail loudly if the app isn't there.
-        Box::new(Remote::connect(&addr).map_err(|e| format!("cannot connect to {addr}: {e}"))?)
+        // Explicit address: fail loudly if the app isn't there or its token can't be found.
+        let token = control_token(&addr).map_err(|e| format!("cannot connect to {addr}: {e}"))?;
+        Box::new(Remote::connect(&addr, Some(&token)).map_err(|e| format!("cannot connect to {addr}: {e}"))?)
     } else {
-        match Remote::connect(DEFAULT_ADDR) {
+        match control_token(DEFAULT_ADDR).and_then(|token| Remote::connect(DEFAULT_ADDR, Some(&token)).map_err(|e| e.to_string())) {
             Ok(r) => Box::new(r),
             Err(_) => Box::new(with_stores(Headless::with_document())),
         }
@@ -262,6 +264,15 @@ fn mcp(args: &[String]) -> Result<(), String> {
     let stdin = std::io::stdin();
     // The server reads and writes from threads of its own, so it takes the handles, not locks held here.
     Server::new(backend).serve(std::io::BufReader::new(stdin), std::io::stdout()).map_err(|e| e.to_string())
+}
+
+/// The control token of the app at `addr` (#3603): `VECTORCRAFT_CONTROL_TOKEN`, else the file
+/// `VECTORCRAFT_CONTROL_TOKEN_FILE` names, else the `control-<port>.token` the app wrote next to the
+/// settings.
+fn control_token(addr: &str) -> Result<String, String> {
+    use vectorcraft_engine::control_auth::{TOKEN_ENV, client_token};
+    let port = addr.rsplit_once(':').and_then(|(_, port)| port.parse::<u16>().ok());
+    client_token(std::env::var_os(TOKEN_ENV), None, port.and_then(prefs_dir::control_token_path))
 }
 
 fn commands() -> Result<(), String> {
