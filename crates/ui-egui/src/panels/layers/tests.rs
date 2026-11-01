@@ -1592,14 +1592,16 @@ fn a_canvas_selection_reveals_its_active_layer() {
     assert!(shown(&mut app, &top) && !shown(&mut app, &bottom), "the highlighted row keeps the view");
 }
 
-/// #4820: an open blend lists its spine below its key objects, and a click on the spine's row
-/// selects the blend (whose spine Direct Selection edits); a locked blend's spine row selects
-/// nothing, and searching leaves the row out.
+/// #4820: an open blend lists its spine below its key objects. The spine's row stands for the
+/// blend's: a click highlights the blend's row, its selection square selects the blend (whose spine
+/// Direct Selection edits) and Shift takes it out again, a Shift-click range counts the blend once,
+/// a locked blend or one outside the isolated group isn't selected, and searching leaves the row out.
 #[test]
-fn a_blends_spine_is_a_row_below_its_keys_that_selects_the_blend() {
+fn a_blends_spine_is_a_row_below_its_keys_that_stands_for_the_blend() {
     let mut app = VectorcraftApp::new(Session::new(), Default::default());
     let run = |app: &mut VectorcraftApp, id: &str, p: serde_json::Value| app.session.execute(id, &p).unwrap();
     run(&mut app, "file.new", json!({"width": 300, "height": 200}));
+    let below = NodeId(run(&mut app, "shape.ellipse", json!({"x": 0, "y": 150, "width": 20, "height": 20}))["id"].as_u64().unwrap());
     let a = run(&mut app, "shape.rectangle", json!({"x": 0, "y": 0, "width": 20, "height": 20}))["id"].as_u64().unwrap();
     let b = run(&mut app, "shape.rectangle", json!({"x": 200, "y": 0, "width": 20, "height": 20}))["id"].as_u64().unwrap();
     run(&mut app, "select.set", json!({"ids": [a, b]}));
@@ -1609,20 +1611,36 @@ fn a_blends_spine_is_a_row_below_its_keys_that_selects_the_blend() {
     let st = app.session.active().unwrap();
     let rows = list_rows(&st.doc, &st.layers_open, &PanelOptions::default(), "", &Filter::default());
     let kinds: Vec<(u64, bool)> = rows.iter().map(|r| (r.node.id.0, r.spine)).collect();
-    assert_eq!(kinds[1..], [(blend.0, false), (b, false), (a, false), (blend.0, true)], "the spine row comes last in the blend");
+    assert_eq!(kinds[1..], [(blend.0, false), (b, false), (a, false), (blend.0, true), (below.0, false)], "the spine row comes last in the blend");
     let rows = list_rows(&st.doc, &st.layers_open, &PanelOptions::default(), "rect", &Filter::default());
     assert!(!rows.iter().any(|r| r.spine), "no spine row while searching");
-    // Rows top down: the layer, the blend, both keys (with target circles), then the spine.
+    // Rows top down: the layer, the blend, both keys, the spine (no target circle), the ellipse.
     let ctx = egui::Context::default();
     let (circles, _) = frame(&mut app, &ctx, vec![], false);
-    assert_eq!(circles.len(), 4);
-    let spine_row = egui::pos2(150.0, circles[3].y + (circles[3].y - circles[2].y));
-    let selected = |app: &VectorcraftApp| app.session.active().unwrap().selection.objects.to_vec();
-    click_with(&mut app, &ctx, spine_row, egui::Modifiers::NONE);
-    assert_eq!(selected(&app), [blend], "its row selects the blend");
-    click_with(&mut app, &ctx, spine_row, egui::Modifiers::SHIFT);
-    assert!(selected(&app).is_empty(), "Shift-click takes it out again");
+    assert_eq!(circles.len(), 5);
+    let spine_y = (circles[3].y + circles[4].y) / 2.0;
+    let (name, square) = (egui::pos2(150.0, spine_y), egui::pos2(circles[4].x + TARGET_X - SQUARE_X, spine_y));
+    let selected = |app: &VectorcraftApp| app.session.active().unwrap().selection.objects.clone();
+    click_with(&mut app, &ctx, name, egui::Modifiers::NONE);
+    assert_eq!(rows_of(&app), vec![blend], "a click highlights the blend's row");
+    assert!(selected(&app).is_empty(), "and selects nothing, as a click on a row's name");
+    // Shift-click on the ellipse below: the range holds the blend once, its keys and the ellipse.
+    let ellipse = egui::pos2(150.0, circles[4].y);
+    click_with(&mut app, &ctx, ellipse, egui::Modifiers::SHIFT);
+    assert_eq!(rows_of(&app), vec![blend, NodeId(b), NodeId(a), below]);
+    click_with(&mut app, &ctx, square, egui::Modifiers::NONE);
+    assert_eq!(selected(&app), [blend], "its square selects the blend");
+    click_with(&mut app, &ctx, square, egui::Modifiers::SHIFT);
+    assert!(selected(&app).is_empty(), "Shift takes it out again");
+    // Isolating the ellipse's group: the blend outside it isn't selected.
+    let g = run(&mut app, "object.group", json!({"ids": [below.0]}))["id"].as_u64().unwrap();
+    run(&mut app, "object.isolate", json!({"id": g}));
+    run(&mut app, "select.none", json!({}));
+    frame(&mut app, &ctx, vec![], false);
+    click_with(&mut app, &ctx, square, egui::Modifiers::NONE);
+    assert!(selected(&app).is_empty(), "outside the isolated group");
+    run(&mut app, "object.exitIsolation", json!({}));
     run(&mut app, "layer.setProps", json!({"ids": [blend.0], "locked": true}));
-    click_with(&mut app, &ctx, spine_row, egui::Modifiers::NONE);
-    assert!(selected(&app).is_empty(), "a locked blend's spine can't be selected");
+    click_with(&mut app, &ctx, square, egui::Modifiers::NONE);
+    assert!(selected(&app).is_empty(), "a locked blend isn't selected");
 }

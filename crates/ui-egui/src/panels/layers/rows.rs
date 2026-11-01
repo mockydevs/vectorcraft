@@ -75,6 +75,8 @@ pub(super) fn resolve_click(ui: &Ui, view: &View, list: &[Row], out: &mut Out) {
     let Some((id, m)) = out.click.take() else { return };
     let anchor: Option<NodeId> = ui.data(|d| d.get_temp(key("anchor")));
     ui.data_mut(|d| d.insert_temp(key("focus"), true));
+    // A blend's spine row stands for the blend: ranges count only the blend's own row.
+    let list: Vec<&Row> = list.iter().filter(|r| !r.spine).collect();
     let at = |id: NodeId| list.iter().position(|r| r.node.id == id);
     if m.shift
         && let Some(a) = anchor.or(view.rows.last().copied())
@@ -157,13 +159,16 @@ fn guide_row(ui: &mut Ui, view: &View, item: &Row, i: usize, out: &mut Out) {
 }
 
 /// The row of the spine of blend `item` (#4820): a path mark and `<Path>`, the selection square
-/// while the blend is selected. A click selects the blend, whose spine Direct Selection then edits
-/// on the canvas; Shift or Cmd adds it to (or takes it from) the selection. The spine of a hidden
-/// or locked blend can't be selected.
+/// while the blend is selected. It acts for the blend's own row: a click highlights it as a click on
+/// that row does ([`resolve_click`]), and a click in the selection column selects the blend
+/// (`layer.selectAll`, which keeps to the isolated group and leaves out hidden and locked art), whose
+/// spine Direct Selection then edits on the canvas; Shift adds it or takes it out.
 fn spine_row(ui: &mut Ui, view: &View, item: &Row, out: &mut Out) {
     let (t, h) = (&view.t, view.h);
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), h), Sense::click());
     let blend = item.node.id;
+    let sq = egui::pos2(r.right() - SQUARE_X, r.center().y);
+    let sq_resp = ui.interact(egui::Rect::from_center_size(sq, vec2(18.0, h)), ui.scope_id().with(("spine-selsq", blend.0)), Sense::click());
     let selected = view.sel.contains(&blend);
     let editable = (view.doc.editable())(blend);
     if editable && resp.hovered() {
@@ -186,14 +191,15 @@ fn spine_row(ui: &mut Ui, view: &View, item: &Row, out: &mut Out) {
     let col_x = r.right() - 43.5;
     ui.painter().line_segment([egui::pos2(col_x, r.top()), egui::pos2(col_x, r.bottom())], Stroke::new(1.0, t.input_border));
     if selected {
-        let q = egui::Rect::from_center_size(egui::pos2(r.right() - SQUARE_X, r.center().y), vec2(7.0, 7.0));
+        let q = egui::Rect::from_center_size(sq, vec2(7.0, 7.0));
         ui.painter().rect_filled(q, 0.0, item.colour);
         ui.painter().rect_stroke(q, 0.0, Stroke::new(1.0, t.text), StrokeKind::Inside);
     }
-    if editable && resp.clicked() {
-        let m = ui.input(|i| i.modifiers);
-        let action = if m.shift || m.command { "select.toggle" } else { "select.set" };
-        out.actions.push((action.into(), json!({"ids": [blend.0]})));
+    let m = ui.input(|i| i.modifiers);
+    if sq_resp.clicked() {
+        out.actions.push(("layer.selectAll".into(), json!({"id": blend.0, "add": m.shift})));
+    } else if resp.clicked() {
+        out.click = Some((blend, m));
     }
 }
 
