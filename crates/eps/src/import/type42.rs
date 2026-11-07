@@ -34,6 +34,20 @@ pub(super) fn font_data(sfnts: &[Obj]) -> Option<Vec<u8>> {
     Some(data)
 }
 
+/// What [`font_data`] visits for `sfnts`: the elements up to the first that isn't a string, and
+/// the bytes of those strings (at most [`MAX_FONT`] and one string more).
+pub(super) fn font_size(sfnts: &[Obj]) -> (usize, usize) {
+    let mut bytes = 0usize;
+    for (i, s) in sfnts.iter().enumerate() {
+        let Obj::Str(s) = s else { return (i + 1, bytes) };
+        bytes = bytes.saturating_add(s.borrow().len());
+        if bytes > MAX_FONT {
+            return (i + 1, bytes.min(2 * MAX_FONT));
+        }
+    }
+    (sfnts.len(), bytes)
+}
+
 /// The TrueType font a Type 42 font carries, with the character each glyph stands for (read
 /// when first asked).
 pub(super) struct Font {
