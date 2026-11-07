@@ -54,6 +54,15 @@ impl Embedded {
         }
     }
 
+    /// The work reading a TrueType font's character map did since last asked (see
+    /// [`type42::Font::take_char_map_work`]); Type 1 fonts have no character map.
+    pub fn take_char_map_work(&self) -> u64 {
+        match self {
+            Self::TrueType(f) => f.take_char_map_work(),
+            Self::Type1(_) => 0,
+        }
+    }
+
     /// The glyph a TrueType font's character map gives `c` (Type 1 fonts have none).
     pub fn gid_of(&self, c: char) -> Option<u32> {
         match self {
