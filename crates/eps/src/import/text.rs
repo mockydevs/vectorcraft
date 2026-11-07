@@ -971,13 +971,17 @@ impl Interp<'_> {
             self.type42.push(hit);
             return Ok(data);
         }
+        // Joining the strings visits each element and copies its bytes, whether or not the font
+        // can then be read: charged first, as other bulk copies are.
+        let (elements, bytes) = super::type42::font_size(&sfnts.borrow());
+        self.spend_bytes(bytes)?;
+        self.spend((elements / 16) as u64)?;
         // Fonts whose data can't be read are kept too, so they are copied only once.
         let data = super::type42::font_data(&sfnts.borrow()).map(|d| Rc::new(super::type42::Font::new(d)));
-        if let Some(d) = &data {
-            if self.type42_counted.insert(sfnts.clone()) {
-                self.alloc(d.data.len())?;
-            }
-            self.spend((d.data.len() / 4096) as u64)?;
+        if let Some(d) = &data
+            && self.type42_counted.insert(sfnts.clone())
+        {
+            self.alloc(d.data.len())?;
         }
         if self.type42.len() >= MAX_TYPE42 {
             self.type42.remove(0);
