@@ -402,3 +402,18 @@ fn named_cidfonts_over_unicode_cmaps_set_their_characters_as_type() {
     // The point moves past the type.
     check("/Ryumin-Light-UniJIS-UCS2-H findfont 20 scalefont setfont <00410042> stringwidth pop dup 5 gt exch 40 lt and");
 }
+
+/// A Type 2 CIDFont the file carries (its glyph space one unit an em), over a Unicode CMap the
+/// file doesn't define, sets its characters as type at the font's size, not a thousand times it.
+#[test]
+fn type2_cidfonts_over_unicode_cmaps_set_type_at_their_size() {
+    let r = super::tests::read(&format!("{}/X /UniGB-UCS2-H [/TestCID2] composefont 20 scalefont setfont 10 20 moveto <4e2d0041> show", cid2_font("0")));
+    let sizes: Vec<f64> = all(&r.document)
+        .iter()
+        .filter_map(|n| match &n.kind {
+            NodeKind::Text(t) => Some(t.runs[0].style.size * t.xf.determinant().abs().sqrt()),
+            _ => None,
+        })
+        .collect();
+    assert!(!sizes.is_empty() && sizes.iter().all(|s| (s - 20.0).abs() < 0.5), "{sizes:?} {:?}", r.warnings);
+}

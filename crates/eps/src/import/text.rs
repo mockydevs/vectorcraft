@@ -793,9 +793,18 @@ fn font_matrix(f: &Dict, default: f64) -> Affine {
 
 /// Font `f`'s glyph units in its matrix's space: Type 1 glyphs are in 1000-unit space; a Type 42
 /// font's glyph space is one unit an em (its FontMatrix, usually the identity, is already the
-/// em's).
+/// em's). A CIDFont's em is the glyph units its matrix makes one unit of text space: one for a
+/// Type 2 CIDFont, its units an em for one from a FontSet's Compact Font Format data.
 fn units(f: &Dict) -> f64 {
-    if font_type(f) == Some(42.0) { 1.0 } else { 1000.0 }
+    if font_type(f) == Some(42.0) {
+        return 1.0;
+    }
+    if let Some(kind) = f.get(&Key::name("CIDFontType")).and_then(Obj::as_num) {
+        let default = if kind == 2.0 { 1.0 } else { 0.001 };
+        let scale = font_matrix(f, default).determinant().abs().sqrt();
+        return if scale.is_finite() && scale > 1e-9 { 1.0 / scale } else { 1.0 / default };
+    }
+    1000.0
 }
 
 impl Interp<'_> {
