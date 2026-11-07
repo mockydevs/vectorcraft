@@ -407,7 +407,8 @@ fn named_cidfonts_over_unicode_cmaps_set_their_characters_as_type() {
 /// file doesn't define, sets its characters as type at the font's size, not a thousand times it.
 #[test]
 fn type2_cidfonts_over_unicode_cmaps_set_type_at_their_size() {
-    let r = super::tests::read(&format!("{}/X /UniGB-UCS2-H [/TestCID2] composefont 20 scalefont setfont 10 20 moveto <4e2d0041> show", cid2_font("0")));
+    let r =
+        super::tests::read(&format!("{}/X /UniGB-UCS2-H [/TestCID2] composefont 20 scalefont setfont 10 20 moveto <4e2d0041> show", cid2_font("0")));
     let sizes: Vec<f64> = all(&r.document)
         .iter()
         .filter_map(|n| match &n.kind {
@@ -429,8 +430,11 @@ fn unmapped_codes_in_base_fonts_take_their_notdef() {
          /sfnts [\n{}] def FontName currentdict end definefont pop\n",
         sfnts()
     );
-    check(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont <0009> stringwidth pop dup 0 gt exch 100 lt and"));
-    let r = super::tests::read(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont 10 20 moveto <0009> show"));
+    check(&format!(
+        "{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont <0009> stringwidth pop dup 0 gt exch 100 lt and"
+    ));
+    let r =
+        super::tests::read(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont 10 20 moveto <0009> show"));
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
 }
 
