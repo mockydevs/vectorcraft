@@ -400,6 +400,11 @@ impl<'a> Interp<'a> {
         self.spend((n / 256) as u64)
     }
 
+    /// The operations left in the budget (see [`MAX_OPS`]).
+    pub fn ops_left(&self) -> u64 {
+        MAX_OPS.saturating_sub(self.ops)
+    }
+
     /// Count `ops` operations' worth of work against [`MAX_OPS`]: what an operator that costs
     /// far more than one operation (laying out type) does in a loop has to end too.
     pub fn spend(&mut self, ops: u64) -> Res {
