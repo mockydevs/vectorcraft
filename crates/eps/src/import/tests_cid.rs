@@ -392,7 +392,7 @@ fn unmapped_codes_in_base_fonts_take_their_notdef() {
         "{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont <0009> stringwidth pop dup 0 gt exch 100 lt and"
     ));
     let r =
-        super::tests::read(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont 10 20 moveto <0009> show"));
+        super::tests::read(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont 10 20 moveto <0009> show 0 0 10 10 rectfill"));
     assert!(r.warnings.is_empty(), "{:?}", r.warnings);
 }
 
