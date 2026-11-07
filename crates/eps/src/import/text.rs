@@ -516,7 +516,8 @@ impl Interp<'_> {
         let starts: Vec<usize> = text.char_indices().map(|(b, _)| b).collect();
         // The file places each character's glyph: where the layout joins characters in a
         // ligature, the type is set without ligatures, so each character has its own advance.
-        if starts.iter().any(|b| !layout.glyphs.iter().any(|g| g.byte == *b)) {
+        let glyph_starts: std::collections::HashSet<usize> = layout.glyphs.iter().map(|g| g.byte).collect();
+        if starts.iter().any(|b| !glyph_starts.contains(b)) {
             for run in &mut t.runs {
                 run.style.features.push("-liga".into());
             }
@@ -845,7 +846,8 @@ impl Interp<'_> {
         let Some(Obj::Dict(cmap)) = cmap else { return Ok(vec![]) };
         let vertical = wmode.or_else(|| cmap.borrow().get(&Key::name("WMode")).and_then(Obj::as_num)) == Some(1.0);
         let map = self.cmap(&cmap)?;
-        let (chars, work) = map.decode(s);
+        // Decoding stops when it would pass the budget left, which `spend` then reports.
+        let (chars, work) = map.decode(s, self.ops_left().saturating_mul(64));
         // Each code is compared with the CMap's ranges and mappings until one matches.
         self.spend((s.len() as u64).saturating_add(work / 64))?;
         Ok(chars
@@ -971,6 +973,8 @@ impl Interp<'_> {
         let Some(data) = self.embedded(font)? else { return Ok(None) };
         let standard = font.borrow().get(&Key::name("Encoding")).and_then(|e| self.standard_encoding(e));
         let (_, gid) = type42_code(&font.borrow(), &data, code, standard);
+        // Reading the font's character map (once) visits each of its mappings.
+        self.spend(data.take_char_map_work())?;
         self.spend(64)?;
         Ok(data.glyph(gid))
     }
