@@ -1036,7 +1036,16 @@ fn type42_code(f: &Dict, data: &Embedded, code: u8, standard: Option<bool>) -> (
     }
     if &*name == ".notdef" {
         let c = char::from(code);
-        return (Some(c), data.gid_of(c).or_else(|| char_string(f, ".notdef")).unwrap_or(0));
+        // A font without a character map (an embedded Type 1 font) has that character's glyph
+        // by its name. A copy of a standard encoding (`StandardEncoding 256 array copy`) comes
+        // here too: its names are the empty systemdict array's.
+        let latin = match code {
+            0x27 => "quotesingle",
+            0x2d => "hyphen",
+            0x60 => "grave",
+            _ => standard_name(code, true),
+        };
+        return (Some(c), data.gid_of(c).or_else(|| char_string(f, latin)).or_else(|| char_string(f, ".notdef")).unwrap_or(0));
     }
     let named = named_char(code, &name);
     let gid = char_string(f, &name).or_else(|| named.and_then(|c| data.gid_of(c))).or_else(|| char_string(f, ".notdef")).unwrap_or(0);

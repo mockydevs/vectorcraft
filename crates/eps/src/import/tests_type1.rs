@@ -155,3 +155,13 @@ fn named_fonts_set_the_characters_their_glyph_names_say() {
     );
     assert_eq!(texts(&r).iter().map(|t| t.plain_text()).collect::<String>(), "Hié");
 }
+
+/// A font whose encoding is a copy of `StandardEncoding` (a different array, so not known as the
+/// standard encoding) still finds each code's glyph by its character's name, not `.notdef`.
+#[test]
+fn copied_standard_encodings_find_their_glyphs() {
+    let fonts = String::from_utf8(font("StandardEncoding 256 array copy", true)).unwrap();
+    check(&format!("{fonts} /TestOne findfont 50 scalefont setfont (AB) stringwidth pop 55 sub abs 0.01 lt"));
+    let r = read(&format!("{fonts} /TestOne findfont 50 scalefont setfont 10 20 moveto (AB) show"));
+    assert_eq!(texts(&r)[0].plain_text(), "AB");
+}
