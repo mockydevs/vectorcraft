@@ -376,3 +376,19 @@ fn cmaps_map_codes_to_base_fonts_codes_and_glyph_names() {
         .collect();
     assert_eq!(text, "ABC");
 }
+
+/// A code a base-font CMap doesn't map, in a base font, is that font's code 0 (`.notdef`): it
+/// moves the point by that glyph's width, not by a thousand ems, and the font isn't missing.
+#[test]
+fn unmapped_codes_in_base_fonts_take_their_notdef() {
+    let plain = format!(
+        "10 dict begin /FontName /Plain42 def /FontType 42 def /FontMatrix [1 0 0 1 0 0] def /FontBBox [0 0 1 1] def /PaintType 0 def\n\
+         /Encoding 256 array def 0 1 255 {{ Encoding exch /.notdef put }} for\n\
+         /CharStrings 1 dict def CharStrings begin /.notdef 0 def end\n\
+         /sfnts [\n{}] def FontName currentdict end definefont pop\n",
+        sfnts()
+    );
+    check(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont <0009> stringwidth pop dup 0 gt exch 100 lt and"));
+    let r = super::tests::read(&format!("{plain}{BF_CMAP}/BF /TestBF-H [/Plain42 /Helvetica] composefont 50 scalefont setfont 10 20 moveto <0009> show"));
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+}

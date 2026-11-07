@@ -845,6 +845,11 @@ impl Interp<'_> {
                     let name = code.is_none().then_some(name);
                     Some(Mapped { font: d.clone(), code: code.unwrap_or(0), name, cid: None, outer, vertical })
                 }
+                // A code without a mapping in a base font (not a CIDFont): its code 0, the
+                // `.notdef` glyph CID 0 stands for in a CIDFont.
+                (Some(Obj::Dict(d)), None) if !d.borrow().contains_key(&Key::name("CIDFontType")) => {
+                    Some(Mapped { font: d.clone(), code: 0, name: None, cid: None, outer, vertical })
+                }
                 (Some(Obj::Dict(d)), None) => {
                     Some(Mapped { font: d.clone(), code: (c.cid & 0xff) as u8, name: None, cid: Some((c.cid, c.notdef)), outer, vertical })
                 }
