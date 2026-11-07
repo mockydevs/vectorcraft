@@ -855,7 +855,9 @@ impl Interp<'_> {
             .into_iter()
             .filter_map(|c| match (fonts.get(c.font), c.base) {
                 // A base font's code, or its glyph name (at the code its encoding gives it, if any).
-                (Some(Obj::Dict(d)), Some(Base::Code(code))) => Some(Mapped { font: d.clone(), pick: 0, code, name: None, cid: None, outer, vertical }),
+                (Some(Obj::Dict(d)), Some(Base::Code(code))) => {
+                    Some(Mapped { font: d.clone(), pick: 0, code, name: None, cid: None, outer, vertical })
+                }
                 (Some(Obj::Dict(d)), Some(Base::Name(name))) => {
                     let code = encoded(&d.borrow(), &name);
                     let name = code.is_none().then_some(name);
