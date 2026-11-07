@@ -495,7 +495,8 @@ impl Interp<'_> {
         let starts: Vec<usize> = text.char_indices().map(|(b, _)| b).collect();
         // The file places each character's glyph: where the layout joins characters in a
         // ligature, the type is set without ligatures, so each character has its own advance.
-        if starts.iter().any(|b| !layout.glyphs.iter().any(|g| g.byte == *b)) {
+        let glyph_starts: std::collections::HashSet<usize> = layout.glyphs.iter().map(|g| g.byte).collect();
+        if starts.iter().any(|b| !glyph_starts.contains(b)) {
             for run in &mut t.runs {
                 run.style.features.push("-liga".into());
             }
