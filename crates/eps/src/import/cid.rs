@@ -12,8 +12,7 @@ use std::rc::Rc;
 use skrifa::raw::ps::cff::CffFontRef;
 use skrifa::raw::ps::cs::{self, CharstringContext, CharstringKind, CommandSink};
 use skrifa::raw::ps::error::Error as CsError;
-use skrifa::raw::ps::string::Sid;
-use skrifa::raw::types::Fixed;
+use skrifa::raw::types::{Fixed, GlyphId};
 use vectorcraft_geom::BezPath;
 
 use super::interp::{Interp, matrix_obj};
@@ -411,7 +410,7 @@ impl Interp<'_> {
             d.insert(Key::name("FontMatrix"), matrix_obj(vectorcraft_geom::Affine::scale(1.0 / upem)));
             let d = DictRef::new(d);
             self.instances(&Obj::name("CIDFont"))?.borrow_mut().insert(Key::name(&name), Obj::Dict(d.clone()));
-            self.cff.push((d, Rc::new(Cff { data: data.clone(), index })));
+            self.cff.push((d, Rc::new(Cff::new(data.clone(), index))));
         }
         Ok(())
     }
@@ -523,7 +522,13 @@ impl Interp<'_> {
     fn cid_type0(&mut self, font: &DictRef, cid: u32) -> Res<Option<(BezPath, f64)>> {
         if let Some(cff) = self.cff.iter().find(|(k, _)| k.same(font)).map(|(_, c)| c.clone()) {
             self.spend(64)?;
-            return Ok(cff.glyph(cid));
+            let read = cff.gids_read().is_some();
+            let glyph = cff.glyph(cid);
+            // Reading the charset visits each of its glyphs.
+            if !read {
+                self.spend(cff.gids_read().unwrap_or(0) as u64)?;
+            }
+            return Ok(glyph);
         }
         let f = font.borrow();
         let num = |k: &str, default: f64| f.get(&Key::name(k)).and_then(Obj::as_num).unwrap_or(default);
@@ -616,19 +621,32 @@ const MAX_FONT_SET: u32 = 64;
 /// Most CIDFonts read from FontSets.
 const MAX_CFF: usize = 256;
 
-/// A CID-keyed font in Compact Font Format data: the data and the font's index in it.
+/// A CID-keyed font in Compact Font Format data: the data and the font's index in it, and the
+/// glyph its charset gives each CID (read when first asked).
 pub(super) struct Cff {
     data: Rc<[u8]>,
     index: u32,
+    gids: std::cell::OnceCell<std::collections::HashMap<u16, GlyphId>>,
 }
 
 impl Cff {
+    fn new(data: Rc<[u8]>, index: u32) -> Self {
+        Self { data, index, gids: std::cell::OnceCell::new() }
+    }
+
+    /// Whether the CID-to-glyph map has been read, and the glyphs it holds.
+    fn gids_read(&self) -> Option<usize> {
+        self.gids.get().map(std::collections::HashMap::len)
+    }
+
     /// Glyph `cid`: the glyph the charset gives that CID, drawn from its Type 2 charstring with
     /// the subroutines and widths of its FDSelect subfont, in font units; `None` when the font
     /// has no glyph for it.
     fn glyph(&self, cid: u32) -> Option<(BezPath, f64)> {
         let font = CffFontRef::new_cff(&self.data, self.index, None).ok()?;
-        let gid = font.charset()?.glyph_id(Sid::new(u16::try_from(cid).ok()?))?;
+        // The charset read once into a map, instead of searched for each glyph.
+        let gids = self.gids.get_or_init(|| font.charset().map(|c| c.iter().map(|(g, sid)| (sid.to_u16(), g)).collect()).unwrap_or_default());
+        let gid = *gids.get(&u16::try_from(cid).ok()?)?;
         if gid.to_u32() == 0 && cid != 0 {
             return None;
         }
