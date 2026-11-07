@@ -954,6 +954,8 @@ impl Interp<'_> {
         let Some(data) = self.embedded(font)? else { return Ok(None) };
         let standard = font.borrow().get(&Key::name("Encoding")).and_then(|e| self.standard_encoding(e));
         let (_, gid) = type42_code(&font.borrow(), &data, code, standard);
+        // Reading the font's character map (once) visits each of its mappings.
+        self.spend(data.take_char_map_work())?;
         self.spend(64)?;
         Ok(data.glyph(gid))
     }
