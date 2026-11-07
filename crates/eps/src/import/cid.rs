@@ -90,12 +90,13 @@ impl CMap {
     }
 
     /// The characters of show string `s` (PLRM 3rd ed., §5.11.5 "CMap Mapping" and "Handling
-    /// Undefined Characters"), and how many ranges and mappings were compared to find them.
-    pub fn decode(&self, s: &[u8]) -> (Vec<CidChar>, u64) {
+    /// Undefined Characters"), and how many ranges and mappings were compared to find them. It
+    /// stops once that passes `limit` (the characters found so far, and the work done).
+    pub fn decode(&self, s: &[u8], limit: u64) -> (Vec<CidChar>, u64) {
         let mut out = Vec::with_capacity(s.len() / 2);
         let mut work = 0u64;
         let mut i = 0;
-        while let Some(rest) = s.get(i..).filter(|r| !r.is_empty()) {
+        while let Some(rest) = s.get(i..).filter(|r| !r.is_empty() && work <= limit) {
             let matched = (1..=MAX_CODE.min(rest.len())).find(|&n| {
                 work += self.space.len() as u64;
                 self.space.iter().any(|r| r.len() == n && fits(r, rest))

@@ -451,3 +451,17 @@ fn cid_glyph_groups_take_the_fonts_name() {
     let names: Vec<_> = all(&r.document).iter().filter(|n| matches!(n.kind, NodeKind::Group { .. })).map(|n| n.name.clone()).collect();
     assert_eq!(names, [Some("TestFont".to_string())]);
 }
+
+/// One show of a long string through a CMap with many mappings stops at the operation budget,
+/// not after decoding the whole string.
+#[test]
+fn one_long_show_through_a_large_cmap_runs_out_of_the_budget() {
+    super::tests::runs_out_of_budget(
+        "/CIDInit /ProcSet findresource begin 12 dict begin begincmap /CMapName /Big-H def\n\
+         2 begincodespacerange <00> <7f> <8000> <ffff> endcodespacerange\n\
+         16000 begincidrange 0 1 15999 { /i exch def 2 string dup 0 i 256 idiv 128 add put dup 1 i 256 mod put dup 1 } for endcidrange\n\
+         16000 begincidrange 0 1 15999 { /i exch def 2 string dup 0 i 256 idiv 192 add put dup 1 i 256 mod put dup 1 } for endcidrange\n\
+         endcmap CMapName currentdict /CMap defineresource pop end end\n\
+         /Big /Big-H [/NotInFile] composefont 50 scalefont setfont 4000000 string stringwidth pop pop",
+    );
+}
