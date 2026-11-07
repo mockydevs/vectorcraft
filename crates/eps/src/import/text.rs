@@ -802,7 +802,8 @@ impl Interp<'_> {
         let Some(Obj::Dict(cmap)) = cmap else { return Ok(vec![]) };
         let vertical = wmode.or_else(|| cmap.borrow().get(&Key::name("WMode")).and_then(Obj::as_num)) == Some(1.0);
         let map = self.cmap(&cmap)?;
-        let (chars, work) = map.decode(s);
+        // Decoding stops when it would pass the budget left, which `spend` then reports.
+        let (chars, work) = map.decode(s, self.ops_left().saturating_mul(64));
         // Each code is compared with the CMap's ranges and mappings until one matches.
         self.spend((s.len() as u64).saturating_add(work / 64))?;
         Ok(chars
